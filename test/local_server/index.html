@@ -1,0 +1,116 @@
+
+<!-- Copied from web_page.h for testing -->
+
+<!DOCTYPE HTML><html>
+<head>
+  <title>Smart Fireplace</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
+    .container { max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    h1 { color: #333; }
+    .status-box { padding: 15px; margin: 15px 0; border-radius: 5px; font-weight: bold; }
+    .on { background-color: #d4edda; color: #155724; }
+    .off { background-color: #f8d7da; color: #721c24; }
+    .btn { display: inline-block; padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; text-decoration: none; color: white; border: none; border-radius: 5px; }
+    .btn-on { background-color: #28a745; }
+    .btn-off { background-color: #dc3545; }
+    .btn-timer { background-color: #007bff; }
+    input { padding: 10px; width: 60px; text-align: center; }
+    .data-row { display: flex; justify-content: space-between; margin: 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Fireplace Control</h1>
+    
+    <div id="status-box" class="status-box off">OFF</div>
+
+    <div class="data-row">
+      <span>Thermocouple:</span> <span id="thermo-val">--</span> mV
+    </div>
+    <div class="data-row">
+      <span>Wall Switch:</span> <span id="switch-val">--</span>
+    </div>
+    <div class="data-row">
+      <span>Timer:</span> <span id="timer-val">--</span>
+    </div>
+
+    <br>
+    <button class="btn btn-on" onclick="control('on')">Turn ON</button>
+    <button class="btn btn-off" onclick="control('off')">Turn OFF</button>
+    
+    <br><br>
+    <input type="number" id="timer-input" placeholder="Min" value="30">
+    <button class="btn btn-timer" onclick="setTimer()">Set Timer</button>
+
+    <div style="margin-top: 20px; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px;">
+      GPIO DEBUG: 
+      Valve(17): <span id="gpio-valve">--</span> | 
+      LED(2): <span id="gpio-led">--</span> | 
+      Switch(33): <span id="gpio-switch">--</span> |
+      Bypass(16): <span id="gpio-bypass">--</span>
+    </div>
+  </div>
+
+<script>
+  function updateStatus() {
+    fetch('/status').then(response => response.json()).then(data => {
+      const box = document.getElementById('status-box');
+      const thermo = document.getElementById('thermo-val');
+      const sw = document.getElementById('switch-val');
+      const timer = document.getElementById('timer-val');
+      
+      // GPIO Debug Elements
+      const gValve = document.getElementById('gpio-valve');
+      const gLed = document.getElementById('gpio-led');
+      const gSwitch = document.getElementById('gpio-switch');
+      const gBypass = document.getElementById('gpio-bypass');
+
+      if (data.active) {
+        box.innerText = "FIREPLACE ON";
+        box.className = "status-box on";
+      } else {
+      // Update GPIO Debug
+      if (gValve) gValve.innerText = data.valve_state ? "HIGH" : "LOW";
+      if (gLed) gLed.innerText = data.led_state ? "HIGH" : "LOW";
+      if (gSwitch) gSwitch.innerText = data.wall_switch ? "HIGH" : "LOW";
+
+        box.innerText = "FIREPLACE OFF";
+        box.className = "status-box off";
+        if (!data.safety) {
+           box.innerText += " (SAFETY CUTOFF)";
+        }
+      }
+
+      thermo.innerText = data.thermo_mv;
+      thermo.style.color = data.safety ? 'green' : 'red';
+      
+      sw.innerText = data.wall_switch ? "ON" : "OFF";
+      
+      if (data.timer_left > 0) {
+        let min = Math.floor(data.timer_left / 60);
+        let sec = data.timer_left % 60;
+        timer.innerText = min + "m " + sec + "s";
+      } else {
+        timer.innerText = "Inactive";
+      }
+    });
+  }
+
+  function control(action) {
+    fetch('/control?state=' + action);
+    setTimeout(updateStatus, 500);
+  }
+
+  function setTimer() {
+    const mins = document.getElementById('timer-input').value;
+    fetch('/control?timer=' + mins);
+    setTimeout(updateStatus, 500);
+  }
+
+  setInterval(updateStatus, 2000);
+  updateStatus();
+</script>
+</body>
+</html>
